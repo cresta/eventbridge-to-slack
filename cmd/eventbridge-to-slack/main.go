@@ -233,6 +233,9 @@ func withText(ctx context.Context, s string) context.Context {
 }
 
 func getText(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
 	if s := ctx.Value(text); s != nil {
 		return s.(string)
 	}

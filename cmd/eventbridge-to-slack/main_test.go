@@ -78,10 +78,12 @@ func TestService_Main(t *testing.T) {
 					osExit = i
 				},
 				config: config{
-					LogLevel:       "warn",
-					MsgToSend:      slackMsg,
-					FilterTemplate: filterTemplate,
-					FilterRegex:    filterRegex,
+					LogLevel:          "warn",
+					MsgToSend:         slackMsg,
+					FilterTemplate:    filterTemplate,
+					FilterRegex:       filterRegex,
+					SlackChannel:      "#ecr",
+					SlackClientSecret: "set",
 				}.WithDefaults(),
 				SlackConstructor: func(_ string, _ ...slack.Option) SlackClient {
 					return cc
