@@ -143,11 +143,12 @@ func (m *Service) setupServer(ctx context.Context, cfg config, log *zapctx.Logge
 		return nil, fmt.Errorf("unable to compile regex: %w", err)
 	}
 	var slackClient SlackClient
-	if cfg.SlackChannel == "" {
+	switch {
+	case cfg.SlackChannel == "":
 		log.Warn(ctx, "no slack channel set.  Just sending messages to stdout")
-	} else if cfg.SlackClientSecret == "" {
+	case cfg.SlackClientSecret == "":
 		log.Warn(ctx, "no slack API secret set.  Just sending messages to stdout")
-	} else {
+	default:
 		slackClient = m.SlackConstructor(cfg.SlackClientSecret)
 		resp, err := slackClient.AuthTestContext(ctx)
 		if err != nil {
