@@ -4,15 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"regexp"
+	"text/template"
+
 	"github.com/Masterminds/sprig/v3"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/cresta/zapctx"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"os"
-	"regexp"
-	"text/template"
 )
 
 func setupLogging(logLevel string) (*zapctx.Logger, error) {
@@ -37,6 +38,7 @@ type config struct {
 	FilterRegex       string
 	FilterTemplate    string
 	MsgToSend         string
+	SlackChannel      string
 }
 
 func (c config) WithDefaults() config {
@@ -52,10 +54,16 @@ func (c config) WithDefaults() config {
 	return c
 }
 
+func (c config) filterPasswords() config {
+	c.SlackClientSecret = fmt.Sprintf("<hidden len=%d>", len(c.SlackClientSecret))
+	return c
+}
+
 func getConfig() config {
 	return config{
 		LogLevel:          os.Getenv("LOG_LEVEL"),
 		SlackClientSecret: os.Getenv("SLACK_CLIENT_SECRET"),
+		SlackChannel:      os.Getenv("SLACK_CHANNEL"),
 		FilterTemplate:    os.Getenv("FILTER_TEMPLATE"),
 		FilterRegex:       os.Getenv("FILTER_REGEX"),
 		MsgToSend:         os.Getenv("MSG_TO_SEND"),
@@ -102,7 +110,7 @@ func (m *Service) Main() {
 			return
 		}
 	}
-	m.log.Info(context.Background(), "Starting", zap.Any("config", m.config))
+	m.log.Info(context.Background(), "Starting", zap.Any("config", m.config.filterPasswords()))
 
 	m.log = m.log.DynamicFields()
 
@@ -111,6 +119,7 @@ func (m *Service) Main() {
 	m.server, err = m.setupServer(ctx, cfg, m.log)
 	if err != nil {
 		m.log.IfErr(err).Error(ctx, "unable to setup server")
+		m.osExit(1)
 		return
 	}
 	m.LambdaStart(m.server.handleRequest)
@@ -133,22 +142,31 @@ func (m *Service) setupServer(ctx context.Context, cfg config, log *zapctx.Logge
 	if err != nil {
 		return nil, fmt.Errorf("unable to compile regex: %w", err)
 	}
-	c := m.SlackConstructor(cfg.SlackClientSecret)
-	resp, err := c.AuthTestContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("unable to verify slack auth: %w", err)
+	var slackClient SlackClient
+	if cfg.SlackChannel == "" {
+		log.Warn(ctx, "no slack channel set.  Just sending messages to stdout")
+	} else if cfg.SlackClientSecret == "" {
+		log.Warn(ctx, "no slack API secret set.  Just sending messages to stdout")
+	} else {
+		slackClient = m.SlackConstructor(cfg.SlackClientSecret)
+		resp, err := slackClient.AuthTestContext(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("unable to verify slack auth: %w", err)
+		}
+		log.Info(ctx, "slack setup", zap.String("team", resp.Team), zap.String("user", resp.User))
 	}
-	log.Info(ctx, "slack setup", zap.String("team", resp.Team), zap.String("user", resp.User))
 	return &Server{
 		log:         log,
 		EventRule:   er,
-		slackClient: c,
+		slackClient: slackClient,
+		slackChan:   cfg.SlackChannel,
 	}, nil
 }
 
 type Server struct {
 	log         *zapctx.Logger
 	slackClient SlackClient
+	slackChan   string
 	EventRule   *EventRule
 }
 
@@ -191,7 +209,15 @@ func (s *Server) handleRequest(ctx context.Context, input map[string]interface{}
 		return err
 	}
 	s.log.Info(ctx, "parsed a msg", zap.String("msg", msg))
-	_, _, _, err = s.slackClient.SendMessageContext(withText(ctx, msg), "#infra-alerts", slack.MsgOptionText(msg, false))
+	if s.slackClient == nil {
+		s.log.Info(ctx, msg)
+		return nil
+	}
+	if msg == "" {
+		s.log.Debug(ctx, "empty message is skipped")
+		return nil
+	}
+	_, _, _, err = s.slackClient.SendMessageContext(withText(ctx, msg), s.slackChan, slack.MsgOptionText(msg, false))
 	s.log.IfErr(err).Warn(ctx, "unable to post message")
 	return err
 }

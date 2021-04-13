@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"testing"
+
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 type dummyClient struct {

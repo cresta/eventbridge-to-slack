@@ -3,7 +3,14 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"strings"
+
 	_ "github.com/cresta/magehelper/cicd/githubactions"
+
 	// mage:import go
 	"github.com/cresta/magehelper/gobuild"
 
@@ -21,4 +28,34 @@ func init() {
 	// Install ECR as my registry
 	registry.Instance = ghcr.Instance
 	gobuild.Instance.BuildMainDirectory = "./cmd/eventbridge-to-slack"
+}
+
+func SampleEvent(ctx context.Context) error {
+	event := `{
+  "account": "123456789012",
+  "detail": {
+    "action-type": "PUSH",
+    "image-digest": "sha256:f98d67af8e53a536502bfc600de3266556b06ed635a32d60aa7a5fe6d7e609d7",
+    "image-tag": "latest",
+    "repository-name": "ubuntu",
+    "result": "SUCCESS"
+  },
+  "detail-type": "ECR Image Action",
+  "id": "4f5ec4d5-4de4-7aad-a046-56d5cfe1df0e",
+  "region": "us-east-1",
+  "resources": [],
+  "source": "aws.ecr",
+  "time": "2019-08-06T00:58:09Z",
+  "version": "0"
+}`
+	resp, err := http.Post("http://localhost:9000/2015-03-31/functions/function/invocations", "applicatoin/json", strings.NewReader(event))
+	if err != nil {
+		return err
+	}
+	res, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(res))
+	return nil
 }
