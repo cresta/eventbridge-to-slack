@@ -12,7 +12,7 @@ import (
 	_ "github.com/cresta/magehelper/cicd/githubactions"
 
 	// mage:import go
-	"github.com/cresta/magehelper/gobuild"
+	_ "github.com/cresta/magehelper/gobuild"
 
 	"github.com/cresta/magehelper/docker/registry"
 	// mage:import ghcr
@@ -25,9 +25,9 @@ import (
 )
 
 func init() {
-	// Install ECR as my registry
+	// Install github as my registry
 	registry.Instance = ghcr.Instance
-	gobuild.Instance.BuildMainDirectory = "./cmd/eventbridge-to-slack"
+	env.Default("DOCKER_MUTABLE_TAGS", "true")
 }
 
 func SampleEvent(ctx context.Context) error {
