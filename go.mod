@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/Masterminds/sprig/v3 v3.2.2
 	github.com/aws/aws-lambda-go v1.23.0
-	github.com/cresta/magehelper v0.0.30
+	github.com/cresta/magehelper v0.0.51
 	github.com/cresta/zapctx v0.0.1
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/huandu/xstrings v1.3.2 // indirect
